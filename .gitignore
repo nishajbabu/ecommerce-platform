@@ -1,0 +1,19 @@
+# Python virtual environment
+venv/
+backend/venv/
+__pycache__/
+*.pyc
+
+# Environment secrets (passwords, tokens)
+.env
+backend/.env
+
+# Node.js dependencies (for when we build frontend)
+node_modules/
+frontend/node_modules/
+.next/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
