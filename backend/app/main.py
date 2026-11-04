@@ -3,6 +3,7 @@ from app.core.config import settings
 from app.db.session import engine, Base
 import app.models  # Registers all models
 from app.api.auth import router as auth_router
+from app.api.products import router as products_router
 
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
@@ -13,8 +14,9 @@ app = FastAPI(
     description="Full-Stack E-Commerce API with Admin & Customer Support"
 )
 
-# Connect Authentication Endpoints
+# Connect Routers
 app.include_router(auth_router)
+app.include_router(products_router)
 
 @app.get("/")
 def root():
