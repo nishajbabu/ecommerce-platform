@@ -6,7 +6,6 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  // Grab token from localStorage if in browser
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   const headers: Record<string, string> = {
@@ -25,7 +24,16 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `Request failed with status ${response.status}`);
+    
+    // If detail is an array (Pydantic validation error), extract the first message
+    let errorMessage = `Request failed with status ${response.status}`;
+    if (typeof errorData.detail === "string") {
+      errorMessage = errorData.detail;
+    } else if (Array.isArray(errorData.detail) && errorData.detail[0]?.msg) {
+      errorMessage = errorData.detail[0].msg;
+    }
+
+    throw new Error(errorMessage);
   }
 
   return response.json();
