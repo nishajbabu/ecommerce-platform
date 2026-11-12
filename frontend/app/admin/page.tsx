@@ -11,10 +11,7 @@ import {
   AlertTriangle,
   Plus,
   Trash2,
-  CheckCircle,
-  Truck,
-  Clock,
-  XCircle,
+  FolderPlus,
 } from "lucide-react";
 
 interface AnalyticsData {
@@ -30,11 +27,17 @@ interface AnalyticsData {
   }>;
 }
 
+interface Category {
+  id: number;
+  name: string;
+}
+
 interface Product {
   id: number;
   title: string;
   price: number;
   stock_quantity: number;
+  category_id: number;
   category?: { name: string };
 }
 
@@ -52,34 +55,56 @@ interface Order {
   }>;
 }
 
+interface Customer {
+  id: number;
+  full_name: string;
+  email: string;
+  role: string;
+  created_at: string;
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders" | "customers">("overview");
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // New Product Form State
+  // New Product State
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("");
   const [newImageUrl, setNewImageUrl] = useState("");
-  const [newCatId, setNewCatId] = useState("1");
+  const [newCatId, setNewCatId] = useState("");
   const [submittingProduct, setSubmittingProduct] = useState(false);
 
+  // New Category State
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatDesc, setNewCatDesc] = useState("");
+  const [submittingCategory, setSubmittingCategory] = useState(false);
+
   useEffect(() => {
-    // 1. Verify user is Admin
+    const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
+
+    if (!token || !storedUser) {
       router.push("/login");
       return;
     }
-    const user = JSON.parse(storedUser);
-    if (user.role !== "admin") {
-      alert("Access Denied: Admin role required");
-      router.push("/");
+
+    try {
+      const user = JSON.parse(storedUser);
+      if (user.role !== "admin") {
+        alert("Access Denied: Admin role required");
+        router.push("/");
+        return;
+      }
+    } catch {
+      router.push("/login");
       return;
     }
 
@@ -89,15 +114,22 @@ export default function AdminDashboardPage() {
   async function loadDashboardData() {
     setLoading(true);
     try {
-      const [analyticsData, productsData, ordersData] = await Promise.all([
+      const [analyticsData, productsData, categoriesData, ordersData, customersData] = await Promise.all([
         apiRequest<AnalyticsData>("/api/admin/analytics"),
         apiRequest<{ products: Product[] }>("/api/products?limit=50"),
+        apiRequest<Category[]>("/api/categories"),
         apiRequest<Order[]>("/api/orders"),
+        apiRequest<Customer[]>("/api/admin/customers"),
       ]);
 
       setAnalytics(analyticsData);
       setProducts(productsData.products);
+      setCategories(categoriesData);
+      if (categoriesData.length > 0 && !newCatId) {
+        setNewCatId(categoriesData[0].id.toString());
+      }
       setOrders(ordersData);
+      setCustomers(customersData);
     } catch (err: any) {
       console.error("Failed to load admin data:", err);
     } finally {
@@ -122,7 +154,6 @@ export default function AdminDashboardPage() {
       });
 
       alert("Product created successfully!");
-      // Reset form
       setNewTitle("");
       setNewDesc("");
       setNewPrice("");
@@ -133,6 +164,29 @@ export default function AdminDashboardPage() {
       alert(err.message || "Failed to create product");
     } finally {
       setSubmittingProduct(false);
+    }
+  };
+
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingCategory(true);
+    try {
+      await apiRequest("/api/categories", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newCatName,
+          description: newCatDesc || undefined,
+        }),
+      });
+
+      alert(`Category "${newCatName}" created!`);
+      setNewCatName("");
+      setNewCatDesc("");
+      loadDashboardData();
+    } catch (err: any) {
+      alert(err.message || "Failed to create category");
+    } finally {
+      setSubmittingCategory(false);
     }
   };
 
@@ -176,10 +230,10 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center bg-gray-100 p-1 rounded-2xl">
+        <div className="flex items-center bg-gray-100 p-1 rounded-2xl overflow-x-auto">
           <button
             onClick={() => setActiveTab("overview")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTab === "overview" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
             }`}
           >
@@ -187,7 +241,7 @@ export default function AdminDashboardPage() {
           </button>
           <button
             onClick={() => setActiveTab("products")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTab === "products" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
             }`}
           >
@@ -195,11 +249,19 @@ export default function AdminDashboardPage() {
           </button>
           <button
             onClick={() => setActiveTab("orders")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTab === "orders" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
             }`}
           >
             Orders ({orders.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("customers")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              activeTab === "customers" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            Customers ({customers.length})
           </button>
         </div>
       </div>
@@ -207,7 +269,6 @@ export default function AdminDashboardPage() {
       {/* ================= TAB 1: OVERVIEW ================= */}
       {activeTab === "overview" && analytics && (
         <div className="space-y-8">
-          {/* Key Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-sm flex items-center justify-between">
               <div>
@@ -250,7 +311,6 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          {/* Low Stock Alerts */}
           {analytics.low_stock_alerts.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 p-6 rounded-3xl space-y-3">
               <div className="flex items-center gap-2 text-amber-800 font-bold text-sm">
@@ -272,114 +332,180 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* ================= TAB 2: INVENTORY MANAGEMENT ================= */}
+      {/* ================= TAB 2: INVENTORY & CATEGORIES ================= */}
       {activeTab === "products" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          {/* Add Product Form */}
-          <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-blue-600" /> Add New Product
-            </h2>
-            <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">Product Title</label>
-                <input
-                  required
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Mechanical Keyboard"
-                  className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">Description</label>
-                <textarea
-                  required
-                  rows={2}
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="RGB backlit mechanical keyboard..."
-                  className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">Price (₹)</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.01"
-                    value={newPrice}
-                    onChange={(e) => setNewPrice(e.target.value)}
-                    placeholder="3499"
-                    className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">Stock</label>
-                  <input
-                    required
-                    type="number"
-                    value={newStock}
-                    onChange={(e) => setNewStock(e.target.value)}
-                    placeholder="15"
-                    className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">Image URL</label>
-                <input
-                  type="url"
-                  value={newImageUrl}
-                  onChange={(e) => setNewImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={submittingProduct}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-md shadow-blue-500/20"
-              >
-                {submittingProduct ? "Creating..." : "Save Product"}
-              </button>
-            </form>
-          </div>
-
-          {/* Products List Table */}
-          <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="p-5 border-b border-gray-100 font-bold text-sm text-gray-900">
-              Live Catalog ({products.length})
-            </div>
-            <div className="divide-y divide-gray-100">
-              {products.map((p) => (
-                <div key={p.id} className="p-4 flex items-center justify-between gap-4">
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            {/* Form Column */}
+            <div className="space-y-6">
+              {/* Add Product Form */}
+              <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-blue-600" /> Add New Product
+                </h2>
+                <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">{p.title}</h3>
-                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                      <span>₹{p.price.toLocaleString("en-IN")}</span>
-                      <span>•</span>
-                      <span className={p.stock_quantity < 5 ? "text-amber-600 font-bold" : "text-gray-600"}>
-                        {p.stock_quantity} in stock
-                      </span>
+                    <label className="font-bold text-gray-700 block mb-1">Product Title</label>
+                    <input
+                      required
+                      type="text"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="Mechanical Keyboard"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Category</label>
+                    <select
+                      required
+                      value={newCatId}
+                      onChange={(e) => setNewCatId(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Description</label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={newDesc}
+                      onChange={(e) => setNewDesc(e.target.value)}
+                      placeholder="Product features and specifications..."
+                      className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-gray-700 block mb-1">Price (₹)</label>
+                      <input
+                        required
+                        type="number"
+                        step="0.01"
+                        value={newPrice}
+                        onChange={(e) => setNewPrice(e.target.value)}
+                        placeholder="2999"
+                        className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-gray-700 block mb-1">Stock</label>
+                      <input
+                        required
+                        type="number"
+                        value={newStock}
+                        onChange={(e) => setNewStock(e.target.value)}
+                        placeholder="25"
+                        className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      />
                     </div>
                   </div>
 
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Image URL</label>
+                    <input
+                      type="url"
+                      value={newImageUrl}
+                      onChange={(e) => setNewImageUrl(e.target.value)}
+                      placeholder="https://images.unsplash.com/..."
+                      className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+
                   <button
-                    onClick={() => handleDeleteProduct(p.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 transition"
-                    title="Deactivate Product"
+                    type="submit"
+                    disabled={submittingProduct}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-md shadow-blue-500/20"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {submittingProduct ? "Saving..." : "Save Product"}
                   </button>
-                </div>
-              ))}
+                </form>
+              </div>
+
+              {/* Add Category Form */}
+              <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm space-y-4">
+                <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <FolderPlus className="w-5 h-5 text-indigo-600" /> Create New Category
+                </h2>
+                <form onSubmit={handleCreateCategory} className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Category Name</label>
+                    <input
+                      required
+                      type="text"
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      placeholder="e.g. Wearables, Home Tech"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Description (Optional)</label>
+                    <input
+                      type="text"
+                      value={newCatDesc}
+                      onChange={(e) => setNewCatDesc(e.target.value)}
+                      placeholder="Short description"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={submittingCategory}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm"
+                  >
+                    {submittingCategory ? "Creating..." : "Add Category"}
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Products List Table */}
+            <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="p-5 border-b border-gray-100 font-bold text-sm text-gray-900 flex justify-between items-center">
+                <span>Live Catalog ({products.length})</span>
+                <span className="text-xs text-gray-400 font-normal">Active items on storefront</span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {products.map((p) => (
+                  <div key={p.id} className="p-4 flex items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-sm text-gray-900">{p.title}</h3>
+                        {p.category && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md">
+                            {p.category.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                        <span>₹{p.price.toLocaleString("en-IN")}</span>
+                        <span>•</span>
+                        <span className={p.stock_quantity < 5 ? "text-amber-600 font-bold" : "text-gray-600"}>
+                          {p.stock_quantity} in stock
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteProduct(p.id)}
+                      className="p-2 text-gray-400 hover:text-red-600 transition"
+                      title="Deactivate Product"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -404,7 +530,6 @@ export default function AdminDashboardPage() {
                     <p className="text-xs text-gray-500 mt-1">Ship to: {o.shipping_address}</p>
                   </div>
 
-                  {/* Status Dropdown */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">Status:</span>
                     <select
@@ -421,7 +546,6 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
-                {/* Items in this order */}
                 <div className="bg-gray-50 rounded-2xl p-3 space-y-1">
                   {o.items.map((item) => (
                     <div key={item.id} className="flex justify-between text-xs text-gray-700">
@@ -436,6 +560,38 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 4: CUSTOMERS DIRECTORY ================= */}
+      {activeTab === "customers" && (
+        <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
+          <div className="p-5 border-b border-gray-100 font-bold text-sm text-gray-900">
+            Registered Customers ({customers.length})
+          </div>
+
+          <div className="divide-y divide-gray-100">
+            {customers.length === 0 ? (
+              <div className="p-8 text-center text-xs text-gray-400">No registered customers yet.</div>
+            ) : (
+              customers.map((c) => (
+                <div key={c.id} className="p-5 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-900">{c.full_name}</h3>
+                    <p className="text-xs text-gray-500">{c.email}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full uppercase">
+                      {c.role}
+                    </span>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Joined {new Date(c.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

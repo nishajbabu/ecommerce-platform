@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List
 from app.schemas.product import ProductResponse
 from app.schemas.order import OrderResponse
@@ -8,9 +8,7 @@ class LowStockAlert(BaseModel):
     title: str
     stock_quantity: int
     price: float
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AdminDashboardAnalytics(BaseModel):
     total_revenue: float

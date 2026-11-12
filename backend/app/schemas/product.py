@@ -1,35 +1,29 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
-# ================= CATEGORY SCHEMAS =================
 class CategoryBase(BaseModel):
-    name: str = Field(..., example="Electronics")
-    description: Optional[str] = Field(None, example="Gadgets, devices, and accessories")
+    name: str = Field(..., json_schema_extra={"example": "Electronics"})
+    description: Optional[str] = Field(None, json_schema_extra={"example": "Gadgets, devices, and accessories"})
 
 class CategoryCreate(CategoryBase):
     pass
 
 class CategoryResponse(CategoryBase):
     id: int
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
-
-
-# ================= PRODUCT SCHEMAS =================
 class ProductBase(BaseModel):
-    title: str = Field(..., example="Wireless Noise-Cancelling Headphones")
-    description: str = Field(..., example="Premium over-ear headphones with 30-hour battery life")
-    price: float = Field(..., gt=0, example=2999.0)
-    stock_quantity: int = Field(..., ge=0, example=50)
-    image_url: Optional[str] = Field(None, example="https://images.unsplash.com/photo-1505740420928-5e560c06d30e")
-    category_id: int = Field(..., example=1)
+    title: str = Field(..., json_schema_extra={"example": "Wireless Noise-Cancelling Headphones"})
+    description: str = Field(..., json_schema_extra={"example": "Premium over-ear headphones with 30-hour battery life"})
+    price: float = Field(..., gt=0, json_schema_extra={"example": 2999.0})
+    stock_quantity: int = Field(..., ge=0, json_schema_extra={"example": 50})
+    image_url: Optional[str] = Field(None, json_schema_extra={"example": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e"})
+    category_id: int = Field(..., json_schema_extra={"example": 1})
 
 class ProductCreate(ProductBase):
     pass
 
-# When updating, all fields are optional (you can update just the price or just the stock)
 class ProductUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -44,11 +38,8 @@ class ProductResponse(ProductBase):
     is_active: bool
     created_at: datetime
     category: Optional[CategoryResponse] = None
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
-
-# Paginated list response
 class ProductListResponse(BaseModel):
     total: int
     page: int

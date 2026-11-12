@@ -28,17 +28,18 @@ def call_groq_ai(system_prompt: str, user_prompt: str, api_key: str) -> str:
         from groq import Groq
         client = Groq(api_key=api_key)
 
-        # 1. If we haven't found the active model yet, query Groq for available models
+        # 1. If we haven't found the active model yet, pick allam-2-7b or the first valid chat model
         if not ACTIVE_GROQ_MODEL:
-            available = client.models.list().data
-            print("Active models on your Groq key:", [m.id for m in available])
+            available = [m.id for m in client.models.list().data]
+            print("Active models on your Groq key:", available)
             
-            # Prefer chat/text models over whisper (audio) models
-            chat_models = [m.id for m in available if "whisper" not in m.id.lower()]
-            if chat_models:
-                ACTIVE_GROQ_MODEL = chat_models[0]
+            if "allam-2-7b" in available:
+                ACTIVE_GROQ_MODEL = "allam-2-7b"
+            elif any("qwen" in m for m in available):
+                ACTIVE_GROQ_MODEL = [m for m in available if "qwen" in m][0]
             else:
-                ACTIVE_GROQ_MODEL = available[0].id
+                ACTIVE_GROQ_MODEL = [m for m in available if "orpheus" not in m and "whisper" not in m][0]
+
             print(f"--> Using Groq Model: {ACTIVE_GROQ_MODEL}")
 
         # 2. Call the active model

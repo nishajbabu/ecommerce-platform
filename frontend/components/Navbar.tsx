@@ -45,6 +45,16 @@ export default function Navbar() {
           <Link href="/cart" className="relative p-2 text-gray-600 hover:text-blue-600 transition">
             <ShoppingCart className="w-5 h-5" />
           </Link>
+          
+          {/* Conditional Customer Orders Link */}
+          {user && user.role === "customer" && (
+            <Link
+              href="/orders"
+              className="text-gray-600 hover:text-blue-600 text-sm font-medium transition"
+            >
+              My Orders
+            </Link>
+          )}
 
           {/* Conditional Admin Link */}
           {user && user.role === "admin" && (

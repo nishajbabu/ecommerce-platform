@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, ShoppingBag, Check, AlertCircle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import Link from "next/link";
 
 interface Category {
   id: number;
@@ -209,9 +210,11 @@ export default function HomePage() {
                 {/* Details Container */}
                 <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                   <div>
-                    <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition line-clamp-1">
-                      {p.title}
-                    </h3>
+                    <Link href={`/products/${p.id}`} className="hover:underline">
+                      <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition line-clamp-1">
+                        {p.title}
+                      </h3>
+                    </Link>
                     <p className="text-xs text-gray-500 line-clamp-2 mt-1">
                       {p.description}
                     </p>

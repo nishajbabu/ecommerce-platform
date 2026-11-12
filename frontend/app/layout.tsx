@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react"; // <-- Import Suspense
 import "./globals.css";
 import Navbar from "@/components/Navbar";
-import AiAssistant from "@/components/AiAssistant"; // <-- Import AI Assistant
+import AiAssistant from "@/components/AiAssistant";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,10 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900 font-sans">
         <Navbar />
         <main className="flex-1">{children}</main>
-        <AiAssistant /> {/* <-- Stays visible across the entire store! */}
+        {/* Wrap in Suspense to resolve Next.js 15 URL prerender warning */}
+        <Suspense fallback={null}>
+          <AiAssistant />
+        </Suspense>
       </body>
     </html>
   );

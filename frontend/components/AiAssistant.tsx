@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Sparkles, X, Send, Bot, User } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 
@@ -10,6 +11,7 @@ interface Message {
 }
 
 export default function AiAssistant() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -24,6 +26,11 @@ export default function AiAssistant() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // HIDE the assistant on Login and Admin pages!
+  if (pathname.startsWith("/login") || pathname.startsWith("/admin")) {
+    return null;
+  }
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +47,7 @@ export default function AiAssistant() {
         body: JSON.stringify({ message: userText }),
       });
       setMessages((prev) => [...prev, { sender: "bot", text: res.reply }]);
-    } catch (err: any) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         { sender: "bot", text: "Sorry, I had trouble answering that. Please try again!" },
@@ -52,7 +59,6 @@ export default function AiAssistant() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      {/* Floating Trigger Button */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
@@ -63,7 +69,6 @@ export default function AiAssistant() {
         </button>
       )}
 
-      {/* Chat Window */}
       {isOpen && (
         <div className="w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col h-[480px] animate-fade-in">
           {/* Header */}
@@ -88,7 +93,7 @@ export default function AiAssistant() {
             </button>
           </div>
 
-          {/* Messages Body */}
+          {/* Messages */}
           <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50/50 text-xs">
             {messages.map((m, idx) => (
               <div
@@ -127,7 +132,7 @@ export default function AiAssistant() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Form */}
+          {/* Input */}
           <form onSubmit={handleSend} className="p-3 bg-white border-t border-gray-100 flex gap-2">
             <input
               type="text"

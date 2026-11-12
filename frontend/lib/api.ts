@@ -1,7 +1,6 @@
-// Centralized API Base URL (connects directly to our FastAPI backend)
+// Centralized API Base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
-// Reusable fetch wrapper that automatically handles JSON and JWT tokens
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -22,10 +21,24 @@ export async function apiRequest<T>(
     headers,
   });
 
+  // Handle Token Expiry / Unauthorized globally
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      // Clear expired credentials
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      
+      // If user is currently trying to access admin or cart, redirect to login
+      if (window.location.pathname.startsWith("/admin") || window.location.pathname.startsWith("/cart")) {
+        window.location.href = "/login?reason=session_expired";
+        return {} as T;
+      }
+    }
+  }
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    
-    // If detail is an array (Pydantic validation error), extract the first message
+
     let errorMessage = `Request failed with status ${response.status}`;
     if (typeof errorData.detail === "string") {
       errorMessage = errorData.detail;

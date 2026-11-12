@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { Lock, Mail, User as UserIcon, ArrowRight, AlertCircle } from "lucide-react";
@@ -13,6 +13,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // 1. Guard: If already logged in, bounce out of the login screen immediately!
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const userStr = localStorage.getItem("user");
+
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user.role === "admin") {
+          window.location.href = "/admin";
+          return;
+        } else {
+          window.location.href = "/";
+          return;
+        }
+      } catch {
+        localStorage.clear();
+      }
+    }
+    setCheckingAuth(false);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +56,7 @@ export default function LoginPage() {
         });
       }
 
-      // Login flow (runs for both direct login and immediately after register)
+      // Login flow
       const res = await apiRequest<{
         access_token: string;
         user: { id: number; full_name: string; email: string; role: string };
@@ -42,23 +65,29 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      // Save token and user details to localStorage
+      // Save credentials cleanly
       localStorage.setItem("token", res.access_token);
       localStorage.setItem("user", JSON.stringify(res.user));
 
-      // Redirect: if admin, go to admin dashboard; if customer, go home
+      // Clean redirect: Admins go to /admin, Customers go to /
       if (res.user.role === "admin") {
-        router.push("/admin");
+        window.location.href = "/admin";
       } else {
-        router.push("/");
+        window.location.href = "/";
       }
-      setTimeout(() => window.location.reload(), 100);
     } catch (err: any) {
       setError(err.message || "Authentication failed");
-    } finally {
       setLoading(false);
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center text-sm font-semibold text-gray-400">
+        Checking session...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">

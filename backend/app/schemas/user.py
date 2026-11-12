@@ -1,19 +1,16 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 
-# 1. When a user registers (Incoming)
 class UserCreate(BaseModel):
     full_name: str
     email: EmailStr
     password: str
-    role: str = "customer"  # Can optionally be 'admin' during setup
+    role: str = "customer"
 
-# 2. When a user logs in (Incoming)
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-# 3. What the frontend receives (Outgoing - Notice NO password here!)
 class UserResponse(BaseModel):
     id: int
     full_name: str
@@ -22,10 +19,8 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True  # Allows Pydantic to read SQLAlchemy model objects
+    model_config = ConfigDict(from_attributes=True)
 
-# 4. Token response after successful login
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

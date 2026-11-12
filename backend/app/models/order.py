@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.session import Base
 
 class CartItem(Base):
@@ -25,7 +25,7 @@ class Order(Base):
     # Status: 'pending', 'processing', 'shipped', 'delivered', 'cancelled'
     status = Column(String(30), default="pending", nullable=False)
     shipping_address = Column(String(500), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     user = relationship("User", back_populates="orders")

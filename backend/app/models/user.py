@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.session import Base
 
 class User(Base):
@@ -14,7 +14,7 @@ class User(Base):
     # Role: 'customer' or 'admin' (Enables Role-Based Access Control)
     role = Column(String(20), default="customer", nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     orders = relationship("Order", back_populates="user")
