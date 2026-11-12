@@ -28,29 +28,32 @@ def call_groq_ai(system_prompt: str, user_prompt: str, api_key: str) -> str:
         from groq import Groq
         client = Groq(api_key=api_key)
 
-        # 1. If we haven't found the active model yet, pick allam-2-7b or the first valid chat model
+        # 1. Prefer pure English models (qwen, gpt-oss) over allam (bilingual Arabic)
         if not ACTIVE_GROQ_MODEL:
             available = [m.id for m in client.models.list().data]
             print("Active models on your Groq key:", available)
             
-            if "allam-2-7b" in available:
+            # Find a fast English general model
+            english_preferred = [m for m in available if any(k in m.lower() for k in ["qwen", "gpt-oss", "llama"]) and "guard" not in m.lower()]
+            
+            if english_preferred:
+                ACTIVE_GROQ_MODEL = english_preferred[0]
+            elif "allam-2-7b" in available:
                 ACTIVE_GROQ_MODEL = "allam-2-7b"
-            elif any("qwen" in m for m in available):
-                ACTIVE_GROQ_MODEL = [m for m in available if "qwen" in m][0]
             else:
-                ACTIVE_GROQ_MODEL = [m for m in available if "orpheus" not in m and "whisper" not in m][0]
+                ACTIVE_GROQ_MODEL = available[0]
 
             print(f"--> Using Groq Model: {ACTIVE_GROQ_MODEL}")
 
-        # 2. Call the active model
+        # 2. Call the active model with increased token budget
         completion = client.chat.completions.create(
             model=ACTIVE_GROQ_MODEL,
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": f"{system_prompt}\nStrict Rule: Always write all responses in clean, fluent English only."},
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.3,
-            max_tokens=150,
+            max_tokens=350,  # <-- Increased from 150 to prevent cutting off mid-sentence!
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
