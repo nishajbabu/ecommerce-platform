@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import AiAssistant from "@/components/AiAssistant";
 import { ToastProvider } from "@/context/ToastContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,27 +36,30 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body 
+      <body
         suppressHydrationWarning
-        className="min-h-full flex flex-col bg-zinc-50 text-zinc-950 font-sans">
-        <ToastProvider>
-          <AuthProvider>
-            <Suspense
-              fallback={
-                <div className="h-16 border-b border-zinc-200 bg-white" />
-              }
-            >
-              <Navbar />
-            </Suspense>
-            <main className="flex-1">{children}</main>
-            <Suspense fallback={null}>
-              <Footer />
-            </Suspense>
-            <Suspense fallback={null}>
-              <AiAssistant />
-            </Suspense>
-          </AuthProvider>
-        </ToastProvider>
+        className="min-h-full flex flex-col bg-zinc-50 text-zinc-950 font-sans"
+      >
+        <ThemeProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <Suspense
+                fallback={
+                  <div className="h-16 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950" />
+                }
+              >
+                <Navbar />
+              </Suspense>
+              <main className="flex-1">{children}</main>
+              <Suspense fallback={null}>
+                <Footer />
+              </Suspense>
+              <Suspense fallback={null}>
+                <AiAssistant />
+              </Suspense>
+            </AuthProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
