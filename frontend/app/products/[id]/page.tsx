@@ -14,6 +14,7 @@ import {
   Plus,
   PackageOpen,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import type { Product } from "@/lib/types";
@@ -105,6 +106,17 @@ function ProductDetailsContent() {
     } finally {
       setAdding(false);
     }
+  };
+
+  const handleAskAiAboutProduct = () => {
+    if (!product) return;
+    window.dispatchEvent(
+      new CustomEvent("open-ai-assistant", {
+        detail: {
+          prompt: `Tell me about "${product.title}" (₹${product.price}) — who is it best for, and how does it compare with other options in your catalog?`,
+        },
+      })
+    );
   };
 
   if (loading) {
@@ -287,6 +299,16 @@ function ProductDetailsContent() {
                 Buy Now
               </Button>
             </div>
+
+            {/* Integrated AI Product Comparison Trigger */}
+            <button
+              type="button"
+              onClick={handleAskAiAboutProduct}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-4 py-2.5 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100/80 dark:border-indigo-500/30 dark:bg-indigo-500/15 dark:text-indigo-300 dark:hover:bg-indigo-500/25 cursor-pointer"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Ask AI Concierge about this product & alternatives
+            </button>
           </div>
 
           {/* Enterprise Value Propositions */}

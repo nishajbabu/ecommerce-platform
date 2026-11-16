@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Search, SlidersHorizontal, PackageX, X } from "lucide-react";
+import { Search, SlidersHorizontal, PackageX, X, Sparkles } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import type { Category, Product } from "@/lib/types";
 import HeroSection from "@/components/storefront/HeroSection";
@@ -34,12 +34,10 @@ function StorefrontContent() {
     inStockOnly: false,
   });
 
-  // Sync local search input when Navbar search updates the URL
   React.useEffect(() => {
     setSearchInput(urlSearch);
   }, [urlSearch]);
 
-  // Fetch categories once
   React.useEffect(() => {
     async function loadCategories() {
       try {
@@ -52,7 +50,6 @@ function StorefrontContent() {
     loadCategories();
   }, []);
 
-  // Fetch products whenever filters or URL search change
   React.useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -112,6 +109,16 @@ function StorefrontContent() {
     if (urlSearch) router.push("/");
   };
 
+  const handleAskAiFallback = () => {
+    const prompt = urlSearch.trim()
+      ? `I searched for "${urlSearch.trim()}" and didn't find an exact match. What similar items do you recommend in stock?`
+      : "No items matched my current filters. What popular products do you recommend right now?";
+
+    window.dispatchEvent(
+      new CustomEvent("open-ai-assistant", { detail: { prompt } })
+    );
+  };
+
   const hasActiveFilters =
     filters.categoryId !== null ||
     filters.minPrice !== "" ||
@@ -119,7 +126,6 @@ function StorefrontContent() {
     filters.inStockOnly ||
     urlSearch.trim() !== "";
 
-  // Client-side stock toggle & sort on returned results
   const displayedProducts = React.useMemo(() => {
     const list = filters.inStockOnly
       ? products.filter((p) => p.stock_quantity > 0)
@@ -260,7 +266,7 @@ function StorefrontContent() {
                 ))}
               </div>
             ) : displayedProducts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center dark:border-zinc-700">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
                   <PackageX className="h-6 w-6" />
                 </div>
@@ -268,18 +274,28 @@ function StorefrontContent() {
                   No matching products
                 </h3>
                 <p className="mt-1 max-w-xs text-xs text-zinc-500">
-                  Try clearing your price range, stock filter, or search query
-                  to view more items.
+                  Try clearing your filters or ask our AI Concierge to suggest
+                  alternatives in stock.
                 </p>
-                {hasActiveFilters && (
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={resetAllFilters}
+                      className="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                    >
+                      Reset all filters
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={resetAllFilters}
-                    className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                    onClick={handleAskAiFallback}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/15 dark:text-indigo-300 transition-colors cursor-pointer"
                   >
-                    Reset all filters
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Ask AI for recommendations
                   </button>
-                )}
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
