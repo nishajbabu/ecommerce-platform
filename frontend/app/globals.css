@@ -6,6 +6,7 @@
 }
 
 :root {
+  color-scheme: light;
   --background: #fafafa;
   --foreground: #09090b;
   --surface: #ffffff;
@@ -22,6 +23,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Hide Edge/IE duplicate native password reveal icon */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
 }
 
 ::-webkit-scrollbar {
