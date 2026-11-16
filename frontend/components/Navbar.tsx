@@ -20,10 +20,17 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, cartCount, logout } = useAuth();
+  const [mounted, setMounted] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  // Use a cleaner dedicated shell on /admin and /login later, or hide search on login
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const displayUser = mounted ? user : null;
+  const displayCartCount = mounted ? cartCount : 0;
+
   const isAdminRoute = pathname.startsWith("/admin");
 
   const handleSearch = (e: React.FormEvent) => {
@@ -38,7 +45,6 @@ export default function Navbar() {
   };
 
   if (isAdminRoute) {
-    // Minimal top bar on Admin routes until Phase 4 installs the dedicated AdminSidebar
     return (
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -64,7 +70,7 @@ export default function Navbar() {
             >
               View Storefront →
             </Link>
-            {user && (
+            {displayUser && (
               <button
                 onClick={logout}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950 cursor-pointer"
@@ -111,7 +117,7 @@ export default function Navbar() {
             >
               Catalog
             </Link>
-            {user && user.role === "customer" && (
+            {displayUser && displayUser.role === "customer" && (
               <Link
                 href="/orders"
                 className={cn(
@@ -125,7 +131,7 @@ export default function Navbar() {
                 Orders
               </Link>
             )}
-            {user && user.role === "admin" && (
+            {displayUser && displayUser.role === "admin" && (
               <Link
                 href="/admin"
                 className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/70 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100/80 transition-colors"
@@ -162,21 +168,21 @@ export default function Navbar() {
           >
             <ShoppingBag className="h-4 w-4 text-zinc-700" />
             <span className="hidden sm:inline">Cart</span>
-            {cartCount > 0 && (
+            {displayCartCount > 0 && (
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1.5 font-mono text-[11px] font-medium text-white">
-                {cartCount}
+                {displayCartCount}
               </span>
             )}
           </Link>
 
-          {user ? (
+          {displayUser ? (
             <div className="hidden sm:flex items-center gap-2 pl-1">
               <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50/80 px-2.5 py-1.5">
                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-semibold text-white">
-                  {user.full_name?.charAt(0).toUpperCase() || "U"}
+                  {displayUser.full_name?.charAt(0).toUpperCase() || "U"}
                 </div>
                 <span className="text-xs font-medium text-zinc-800">
-                  {user.full_name?.split(" ")[0] || "Account"}
+                  {displayUser.full_name?.split(" ")[0] || "Account"}
                 </span>
               </div>
               <button
@@ -230,7 +236,7 @@ export default function Navbar() {
             >
               Catalog
             </Link>
-            {user && user.role === "customer" && (
+            {displayUser && displayUser.role === "customer" && (
               <Link
                 href="/orders"
                 onClick={() => setMobileOpen(false)}
@@ -239,7 +245,7 @@ export default function Navbar() {
                 My Orders
               </Link>
             )}
-            {user && user.role === "admin" && (
+            {displayUser && displayUser.role === "admin" && (
               <Link
                 href="/admin"
                 onClick={() => setMobileOpen(false)}
@@ -248,12 +254,12 @@ export default function Navbar() {
                 Admin Console
               </Link>
             )}
-            {user ? (
+            {displayUser ? (
               <button
                 onClick={logout}
                 className="flex items-center justify-between rounded-lg px-3 py-2 text-left font-medium text-rose-600 hover:bg-rose-50"
               >
-                <span>Sign out ({user.full_name?.split(" ")[0]})</span>
+                <span>Sign out ({displayUser.full_name?.split(" ")[0]})</span>
                 <LogOut className="h-4 w-4" />
               </button>
             ) : (

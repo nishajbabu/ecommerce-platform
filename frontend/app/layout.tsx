@@ -37,9 +37,17 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-950 font-sans">
         <ToastProvider>
           <AuthProvider>
-            <Navbar />
+            <Suspense
+              fallback={
+                <div className="h-16 border-b border-zinc-200 bg-white" />
+              }
+            >
+              <Navbar />
+            </Suspense>
             <main className="flex-1">{children}</main>
-            <Footer />
+            <Suspense fallback={null}>
+              <Footer />
+            </Suspense>
             <Suspense fallback={null}>
               <AiAssistant />
             </Suspense>

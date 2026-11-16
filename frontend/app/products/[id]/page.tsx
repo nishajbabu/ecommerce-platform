@@ -1,38 +1,64 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useParams } from "next/navigation";
+import * as React from "react";
+import { Suspense } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  ShoppingBag,
+  ChevronRight,
+  ShieldCheck,
+  Truck,
+  RefreshCw,
+  Minus,
+  Plus,
+  PackageOpen,
+  Zap,
+} from "lucide-react";
 import { apiRequest } from "@/lib/api";
-import { ShoppingBag, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw } from "lucide-react";
-
-interface Product {
-  id: number;
-  title: string;
-  description: string;
-  price: number;
-  stock_quantity: number;
-  image_url?: string;
-  category?: { name: string };
-}
+import type { Product } from "@/lib/types";
+import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/context/ToastContext";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import ProductCard from "@/components/storefront/ProductCard";
 
 function ProductDetailsContent() {
   const params = useParams();
+  const router = useRouter();
+  const { toast } = useToast();
   const productId = params?.id as string;
 
-  const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [product, setProduct] = React.useState<Product | null>(null);
+  const [related, setRelated] = React.useState<Product[]>([]);
+  const [quantity, setQuantity] = React.useState(1);
+  const [loading, setLoading] = React.useState(true);
+  const [adding, setAdding] = React.useState(false);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!productId) return;
 
     async function loadProduct() {
+      setLoading(true);
       try {
         const data = await apiRequest<Product>(`/api/products/${productId}`);
         setProduct(data);
-      } catch (err: any) {
+        setQuantity(1);
+
+        if (data?.category_id) {
+          try {
+            const relRes = await apiRequest<{ products: Product[] }>(
+              `/api/products?category_id=${data.category_id}&limit=4`
+            );
+            setRelated(
+              (relRes.products || []).filter((p) => p.id !== data.id).slice(0, 3)
+            );
+          } catch {
+            // Optional related products fetch
+          }
+        }
+      } catch (err) {
         console.error("Failed to load product details:", err);
       } finally {
         setLoading(false);
@@ -41,11 +67,16 @@ function ProductDetailsContent() {
     loadProduct();
   }, [productId]);
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = async (redirectToCart = false) => {
     if (!product) return;
     const token = localStorage.getItem("token");
     if (!token) {
-      showToast("Please sign in to add items to your cart!");
+      toast({
+        type: "info",
+        title: "Sign in required",
+        description: "Please sign in to add items to your cart.",
+      });
+      if (redirectToCart) router.push("/login");
       return;
     }
 
@@ -53,138 +84,269 @@ function ProductDetailsContent() {
     try {
       await apiRequest("/api/cart", {
         method: "POST",
-        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
+        body: JSON.stringify({ product_id: product.id, quantity }),
       });
-      showToast(`Added "${product.title}" to cart!`);
-    } catch (err: any) {
-      showToast(err.message || "Could not add to cart");
+      window.dispatchEvent(new Event("cart-updated"));
+      toast({
+        type: "success",
+        title: "Added to cart",
+        description: `${quantity} × ${product.title} added to your cart.`,
+      });
+      if (redirectToCart) {
+        router.push("/cart");
+      }
+    } catch (err: unknown) {
+      toast({
+        type: "error",
+        title: "Could not add to cart",
+        description:
+          err instanceof Error ? err.message : "Please try again.",
+      });
     } finally {
       setAdding(false);
     }
   };
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto p-12 text-center text-gray-400 font-semibold animate-pulse">
-        Loading product details...
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+          <Skeleton className="aspect-square w-full rounded-2xl" />
+          <div className="space-y-5 pt-4">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-10 w-3/4" />
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="max-w-xl mx-auto p-12 text-center space-y-4">
-        <h2 className="text-xl font-bold text-gray-900">Product Not Found</h2>
-        <Link href="/" className="text-sm font-bold text-blue-600 hover:underline">
-          ← Back to Store
+      <div className="mx-auto max-w-lg px-4 py-20 text-center space-y-4">
+        <h2 className="text-xl font-semibold text-zinc-950">
+          Product Not Found
+        </h2>
+        <p className="text-sm text-zinc-500">
+          This item may have been removed or is temporarily unavailable.
+        </p>
+        <Link
+          href="/"
+          className="inline-flex rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+        >
+          Back to Catalog
         </Link>
       </div>
     );
   }
 
+  const isOutOfStock = product.stock_quantity <= 0;
+  const isLowStock = product.stock_quantity > 0 && product.stock_quantity <= 5;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in">
-          <Check className="w-4 h-4 text-emerald-400" />
-          <span className="text-sm font-medium">{toastMessage}</span>
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-14">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-xs text-zinc-500">
+        <Link href="/" className="hover:text-zinc-950 transition-colors">
+          Store
+        </Link>
+        <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
+        {product.category?.name && (
+          <>
+            <span>{product.category.name}</span>
+            <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
+          </>
+        )}
+        <span className="font-medium text-zinc-900 truncate">
+          {product.title}
+        </span>
+      </nav>
+
+      {/* Main Product Split */}
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:items-start">
+        {/* Left: Product Gallery Frame */}
+        <div className="lg:col-span-6">
+          <div className="group relative aspect-square overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xs">
+            {product.image_url ? (
+              <img
+                src={product.image_url}
+                alt={product.title}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-400">
+                <PackageOpen className="h-10 w-10 stroke-[1.5]" />
+                <span className="text-xs font-medium">No Image Available</span>
+              </div>
+            )}
+          </div>
         </div>
-      )}
 
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-blue-600 transition"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to Store
-      </Link>
+        {/* Right: Specifications & Purchase Panel */}
+        <div className="lg:col-span-6 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="space-y-3 border-b border-zinc-100 pb-6">
+            <div className="flex flex-wrap items-center gap-2">
+              {product.category?.name && (
+                <Badge variant="neutral">{product.category.name}</Badge>
+              )}
+              {isOutOfStock ? (
+                <Badge variant="danger">Out of Stock</Badge>
+              ) : isLowStock ? (
+                <Badge variant="warning">
+                  Low Stock · {product.stock_quantity} remaining
+                </Badge>
+              ) : (
+                <Badge variant="success">
+                  In Stock · {product.stock_quantity} available
+                </Badge>
+              )}
+            </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start bg-white p-8 sm:p-12 rounded-3xl border border-gray-200 shadow-sm">
-        {/* Product Image */}
-        <div className="h-96 rounded-2xl bg-gray-100 overflow-hidden flex items-center justify-center">
-          {product.image_url ? (
-            <img src={product.image_url} alt={product.title} className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-gray-400 text-sm">No Image Available</span>
-          )}
-        </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">
+              {product.title}
+            </h1>
 
-        {/* Product Information */}
-        <div className="space-y-6">
-          {product.category && (
-            <span className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full">
-              {product.category.name}
-            </span>
-          )}
-
-          <h1 className="text-3xl font-extrabold text-gray-900">{product.title}</h1>
-
-          <div className="flex items-center gap-4">
-            <span className="text-3xl font-black text-gray-900">
-              ₹{product.price.toLocaleString("en-IN")}
-            </span>
-            <span
-              className={`text-xs font-bold px-3 py-1 rounded-full ${
-                product.stock_quantity > 0
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "bg-red-50 text-red-700"
-              }`}
-            >
-              {product.stock_quantity > 0 ? `${product.stock_quantity} In Stock` : "Out of Stock"}
-            </span>
+            <div className="flex items-baseline gap-3 pt-1">
+              <span className="font-mono text-3xl font-semibold tracking-tight text-zinc-950 tabular-nums">
+                {formatCurrency(product.price)}
+              </span>
+              <span className="text-xs text-zinc-500">
+                Inclusive of all taxes
+              </span>
+            </div>
           </div>
 
-          <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-900">
+              Overview
+            </h2>
+            <p className="text-sm leading-relaxed text-zinc-600">
+              {product.description}
+            </p>
+          </div>
 
-          <button
-            onClick={handleAddToCart}
-            disabled={adding || product.stock_quantity === 0}
-            className={`w-full py-4 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition shadow-lg ${
-              product.stock_quantity === 0
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25"
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            {product.stock_quantity === 0
-              ? "Currently Out of Stock"
-              : adding
-              ? "Adding to Cart..."
-              : "Add to Cart"}
-          </button>
+          {/* Quantity & Action Row */}
+          <div className="space-y-3 pt-2">
+            {!isOutOfStock && (
+              <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50/70 px-4 py-2.5">
+                <span className="text-xs font-medium text-zinc-700">
+                  Quantity
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= 1}
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="w-6 text-center font-mono text-sm font-medium text-zinc-950 tabular-nums">
+                    {quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuantity((q) =>
+                        Math.min(product.stock_quantity, q + 1)
+                      )
+                    }
+                    disabled={quantity >= product.stock_quantity}
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Value Props */}
-          <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-100 text-center">
-            <div className="space-y-1">
-              <Truck className="w-5 h-5 text-gray-400 mx-auto" />
-              <p className="text-[10px] font-bold text-gray-700">Free Delivery</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Button
+                size="lg"
+                variant="outline"
+                disabled={isOutOfStock}
+                isLoading={adding}
+                onClick={() => handleAddToCart(false)}
+                className="w-full"
+              >
+                <ShoppingBag className="h-4 w-4" />
+                {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+              </Button>
+              <Button
+                size="lg"
+                variant="primary"
+                disabled={isOutOfStock}
+                isLoading={adding}
+                onClick={() => handleAddToCart(true)}
+                className="w-full"
+              >
+                <Zap className="h-4 w-4" />
+                Buy Now
+              </Button>
             </div>
-            <div className="space-y-1">
-              <ShieldCheck className="w-5 h-5 text-gray-400 mx-auto" />
-              <p className="text-[10px] font-bold text-gray-700">1 Year Warranty</p>
+          </div>
+
+          {/* Enterprise Value Propositions */}
+          <div className="grid grid-cols-1 gap-3 border-t border-zinc-100 pt-6 sm:grid-cols-3">
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50/70 p-3">
+              <Truck className="h-4 w-4 text-zinc-700" />
+              <p className="mt-2 text-xs font-semibold text-zinc-900">
+                Free Delivery
+              </p>
+              <p className="text-[11px] text-zinc-500">Tracked express ship</p>
             </div>
-            <div className="space-y-1">
-              <RefreshCw className="w-5 h-5 text-gray-400 mx-auto" />
-              <p className="text-[10px] font-bold text-gray-700">7 Days Return</p>
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50/70 p-3">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <p className="mt-2 text-xs font-semibold text-zinc-900">
+                1-Year Warranty
+              </p>
+              <p className="text-[11px] text-zinc-500">Verified protection</p>
+            </div>
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50/70 p-3">
+              <RefreshCw className="h-4 w-4 text-zinc-700" />
+              <p className="mt-2 text-xs font-semibold text-zinc-900">
+                7-Day Returns
+              </p>
+              <p className="text-[11px] text-zinc-500">Easy replacement</p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Related Products */}
+      {related.length > 0 && (
+        <section className="space-y-5 border-t border-zinc-200 pt-10">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
+              Similar in {product.category?.name || "this category"}
+            </h2>
+            <Link
+              href="/"
+              className="text-xs font-medium text-zinc-500 hover:text-zinc-950 transition-colors"
+            >
+              View all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {related.map((item) => (
+              <ProductCard key={item.id} product={item} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
-// Outer export that wraps the content in Suspense (Resolves Next.js prerender error)
 export default function ProductDetailsPage() {
   return (
     <Suspense
       fallback={
-        <div className="max-w-7xl mx-auto p-12 text-center text-gray-400 font-semibold animate-pulse">
-          Loading product...
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <Skeleton className="h-96 w-full rounded-2xl" />
         </div>
       }
     >
