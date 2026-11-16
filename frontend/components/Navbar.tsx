@@ -1,97 +1,273 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ShoppingCart, User as UserIcon, Shield, LogOut } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  ShoppingBag,
+  Search,
+  ShieldCheck,
+  Package,
+  LogOut,
+  Menu,
+  X,
+  User as UserIcon,
+} from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { cn } from "@/lib/utils";
 
 export default function Navbar() {
-  const [user, setUser] = useState<{ full_name: string; role: string } | null>(null);
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, cartCount, logout } = useAuth();
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  useEffect(() => {
-    // Check if user is logged in
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error(e);
-      }
+  // Use a cleaner dedicated shell on /admin and /login later, or hide search on login
+  const isAdminRoute = pathname.startsWith("/admin");
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    setMobileOpen(false);
+    if (q) {
+      router.push(`/?search=${encodeURIComponent(q)}`);
+    } else {
+      router.push("/");
     }
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    window.location.href = "/";
   };
 
-  return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-2xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            NeuraShop
-          </span>
-        </Link>
-
-        {/* Navigation Links */}
-        <nav className="flex items-center gap-6">
-          <Link href="/" className="text-gray-600 hover:text-blue-600 font-medium transition">
-            Store
-          </Link>
-
-          {/* Cart Icon */}
-          <Link href="/cart" className="relative p-2 text-gray-600 hover:text-blue-600 transition">
-            <ShoppingCart className="w-5 h-5" />
-          </Link>
-          
-          {/* Conditional Customer Orders Link */}
-          {user && user.role === "customer" && (
-            <Link
-              href="/orders"
-              className="text-gray-600 hover:text-blue-600 text-sm font-medium transition"
-            >
-              My Orders
-            </Link>
-          )}
-
-          {/* Conditional Admin Link */}
-          {user && user.role === "admin" && (
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              Admin Portal
-            </Link>
-          )}
-
-          {/* Auth State */}
-          {user ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-700">
-                Hi, {user.full_name.split(" ")[0]}
+  if (isAdminRoute) {
+    // Minimal top bar on Admin routes until Phase 4 installs the dedicated AdminSidebar
+    return (
+      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 text-xs font-bold text-white">
+                N
+              </div>
+              <span className="text-sm font-semibold tracking-tight text-zinc-950">
+                NeuraShop
               </span>
+            </Link>
+            <span className="text-zinc-300">/</span>
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
+              <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
+              Admin Console
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="text-xs font-medium text-zinc-600 hover:text-zinc-950 transition-colors"
+            >
+              View Storefront →
+            </Link>
+            {user && (
               <button
-                onClick={handleLogout}
-                title="Logout"
-                className="p-2 text-gray-500 hover:text-red-600 transition"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950 cursor-pointer"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="h-3.5 w-3.5" />
+                Sign out
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/85 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        {/* Brand */}
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-2.5 shrink-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950 text-sm font-bold text-white shadow-xs">
+              N
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-base font-semibold tracking-tight text-zinc-950">
+                NeuraShop
+              </span>
+              <span className="hidden sm:inline-block rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-500">
+                STORE
+              </span>
+            </div>
+          </Link>
+
+          {/* Desktop Nav Links */}
+          <nav className="hidden md:flex items-center gap-6">
+            <Link
+              href="/"
+              className={cn(
+                "text-sm font-medium transition-colors",
+                pathname === "/"
+                  ? "text-zinc-950"
+                  : "text-zinc-500 hover:text-zinc-950"
+              )}
+            >
+              Catalog
+            </Link>
+            {user && user.role === "customer" && (
+              <Link
+                href="/orders"
+                className={cn(
+                  "inline-flex items-center gap-1.5 text-sm font-medium transition-colors",
+                  pathname.startsWith("/orders")
+                    ? "text-zinc-950"
+                    : "text-zinc-500 hover:text-zinc-950"
+                )}
+              >
+                <Package className="h-3.5 w-3.5" />
+                Orders
+              </Link>
+            )}
+            {user && user.role === "admin" && (
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/70 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100/80 transition-colors"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Admin Console
+              </Link>
+            )}
+          </nav>
+        </div>
+
+        {/* Center Search Bar (Desktop) */}
+        <form
+          onSubmit={handleSearch}
+          className="hidden md:flex flex-1 max-w-md items-center"
+        >
+          <div className="relative w-full">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search laptops, audio, accessories..."
+              className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50/70 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+            />
+          </div>
+        </form>
+
+        {/* Right Actions */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link
+            href="/cart"
+            className="relative inline-flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-800 shadow-xs hover:bg-zinc-50 hover:border-zinc-300 transition-all"
+          >
+            <ShoppingBag className="h-4 w-4 text-zinc-700" />
+            <span className="hidden sm:inline">Cart</span>
+            {cartCount > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1.5 font-mono text-[11px] font-medium text-white">
+                {cartCount}
+              </span>
+            )}
+          </Link>
+
+          {user ? (
+            <div className="hidden sm:flex items-center gap-2 pl-1">
+              <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50/80 px-2.5 py-1.5">
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-semibold text-white">
+                  {user.full_name?.charAt(0).toUpperCase() || "U"}
+                </div>
+                <span className="text-xs font-medium text-zinc-800">
+                  {user.full_name?.split(" ")[0] || "Account"}
+                </span>
+              </div>
+              <button
+                onClick={logout}
+                title="Sign out"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-500 hover:border-zinc-200 hover:bg-white hover:text-rose-600 transition-all cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
               </button>
             </div>
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm"
+              className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white shadow-xs hover:bg-zinc-800 transition-colors"
             >
-              <UserIcon className="w-4 h-4" />
+              <UserIcon className="h-3.5 w-3.5" />
               Sign In
             </Link>
           )}
-        </nav>
+
+          {/* Mobile Menu Toggle */}
+          <button
+            onClick={() => setMobileOpen((prev) => !prev)}
+            className="inline-flex md:hidden h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
+
+      {/* Mobile Dropdown */}
+      {mobileOpen && (
+        <div className="border-t border-zinc-200 bg-white px-4 py-4 md:hidden space-y-4">
+          <form onSubmit={handleSearch} className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search products..."
+              className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-sm focus:border-zinc-900 focus:bg-white focus:outline-none"
+            />
+          </form>
+
+          <div className="flex flex-col gap-2 text-sm">
+            <Link
+              href="/"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-lg px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
+            >
+              Catalog
+            </Link>
+            {user && user.role === "customer" && (
+              <Link
+                href="/orders"
+                onClick={() => setMobileOpen(false)}
+                className="rounded-lg px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
+              >
+                My Orders
+              </Link>
+            )}
+            {user && user.role === "admin" && (
+              <Link
+                href="/admin"
+                onClick={() => setMobileOpen(false)}
+                className="rounded-lg px-3 py-2 font-medium text-indigo-700 bg-indigo-50"
+              >
+                Admin Console
+              </Link>
+            )}
+            {user ? (
+              <button
+                onClick={logout}
+                className="flex items-center justify-between rounded-lg px-3 py-2 text-left font-medium text-rose-600 hover:bg-rose-50"
+              >
+                <span>Sign out ({user.full_name?.split(" ")[0]})</span>
+                <LogOut className="h-4 w-4" />
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setMobileOpen(false)}
+                className="rounded-lg bg-zinc-900 px-3 py-2 text-center font-medium text-white"
+              >
+                Sign In
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

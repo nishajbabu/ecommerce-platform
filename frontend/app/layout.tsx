@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Suspense } from "react"; // <-- Import Suspense
+import { Suspense } from "react";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import AiAssistant from "@/components/AiAssistant";
+import { ToastProvider } from "@/context/ToastContext";
+import { AuthProvider } from "@/context/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,8 +19,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NeuraShop | Modern Full-Stack E-Commerce",
-  description: "Next-gen full-stack e-commerce platform with automated admin intelligence",
+  title: "NeuraShop | Enterprise Tech Commerce",
+  description:
+    "Next-generation full-stack e-commerce platform with live AI catalog intelligence.",
 };
 
 export default function RootLayout({
@@ -30,13 +34,17 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-gray-50 text-gray-900 font-sans">
-        <Navbar />
-        <main className="flex-1">{children}</main>
-        {/* Wrap in Suspense to resolve Next.js 15 URL prerender warning */}
-        <Suspense fallback={null}>
-          <AiAssistant />
-        </Suspense>
+      <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-950 font-sans">
+        <ToastProvider>
+          <AuthProvider>
+            <Navbar />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <Suspense fallback={null}>
+              <AiAssistant />
+            </Suspense>
+          </AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );
