@@ -63,7 +63,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-200/90 bg-white transition-all duration-200 hover:border-zinc-300 hover:shadow-md">
+    <div className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-200/90 bg-white transition-all duration-200 hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700">
       {/* Image Frame */}
       <Link
         href={`/products/${product.id}`}
@@ -88,7 +88,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         {/* Top Badges */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
           {product.category?.name ? (
-            <span className="rounded-md border border-zinc-200/80 bg-white/95 px-2 py-0.5 text-[11px] font-medium text-zinc-800 backdrop-blur-sm">
+            <span className="rounded-md border border-zinc-200/80 bg-white/95 px-2 py-0.5 text-[11px] font-medium text-zinc-800 backdrop-blur-sm dark:border-zinc-700/80 dark:bg-zinc-950/85 dark:text-zinc-100">
               {product.category.name}
             </span>
           ) : (
@@ -107,7 +107,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       <div className="flex flex-1 flex-col justify-between p-4 sm:p-5">
         <div className="space-y-1.5">
           <Link href={`/products/${product.id}`} className="block">
-            <h3 className="line-clamp-1 text-sm font-semibold tracking-tight text-zinc-950 transition-colors group-hover:text-indigo-600">
+            <h3 className="line-clamp-1 text-sm font-semibold tracking-tight text-zinc-950 group-hover:underline decoration-zinc-300 dark:decoration-zinc-600 underline-offset-4">
               {product.title}
             </h3>
           </Link>
