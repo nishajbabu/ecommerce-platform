@@ -40,6 +40,40 @@ def create_category(
     db.refresh(category)
     return category
 
+@router.delete("/categories/{category_id}", status_code=status.HTTP_200_OK)
+def delete_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)  # Admin check
+):
+    """Admin-only: Delete an empty or mistakenly created category."""
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    active_count = (
+        db.query(Product)
+        .filter(Product.category_id == category_id, Product.is_active == True)
+        .count()
+    )
+    if active_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete '{category.name}': {active_count} active product(s) still belong to it."
+        )
+
+    any_product = db.query(Product).filter(Product.category_id == category_id).first()
+    if any_product:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete '{category.name}' because deactivated products still reference it for order history."
+        )
+
+    category_name = category.name
+    db.delete(category)
+    db.commit()
+    return {"message": f"Category '{category_name}' has been deleted."}
+
 
 # ====================================================
 # PRODUCTS ENDPOINTS (PUBLIC)

@@ -17,6 +17,8 @@ import {
   PackageOpen,
   RefreshCw,
   FolderPlus,
+  X,
+  Tag,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
@@ -79,7 +81,7 @@ export default function AdminDashboardPage() {
   const [orderStatusFilter, setOrderStatusFilter] = React.useState("all");
   const [customerSearch, setCustomerSearch] = React.useState("");
 
-  // Modals
+  // Product Modals
   const [showProductModal, setShowProductModal] = React.useState(false);
   const [editingProduct, setEditingProduct] =
     React.useState<AdminProduct | null>(null);
@@ -87,11 +89,14 @@ export default function AdminDashboardPage() {
     React.useState<AdminProduct | null>(null);
   const [deleting, setDeleting] = React.useState(false);
 
-  // Standalone Category Modal
+  // Category Modals
   const [showCategoryModal, setShowCategoryModal] = React.useState(false);
   const [newCatName, setNewCatName] = React.useState("");
   const [newCatDesc, setNewCatDesc] = React.useState("");
   const [submittingCategory, setSubmittingCategory] = React.useState(false);
+  const [deletingCategory, setDeletingCategory] =
+    React.useState<Category | null>(null);
+  const [deletingCatLoading, setDeletingCatLoading] = React.useState(false);
 
   const loadDashboardData = React.useCallback(async () => {
     setLoading(true);
@@ -203,6 +208,32 @@ export default function AdminDashboardPage() {
       });
     } finally {
       setSubmittingCategory(false);
+    }
+  };
+
+  const handleConfirmDeleteCategory = async () => {
+    if (!deletingCategory) return;
+    setDeletingCatLoading(true);
+    try {
+      await apiRequest(`/api/categories/${deletingCategory.id}`, {
+        method: "DELETE",
+      });
+      toast({
+        type: "success",
+        title: "Category deleted",
+        description: `"${deletingCategory.name}" has been removed.`,
+      });
+      setDeletingCategory(null);
+      loadDashboardData();
+    } catch (err: unknown) {
+      toast({
+        type: "error",
+        title: "Cannot delete category",
+        description:
+          err instanceof Error ? err.message : "Could not delete category.",
+      });
+    } finally {
+      setDeletingCatLoading(false);
     }
   };
 
@@ -414,7 +445,7 @@ export default function AdminDashboardPage() {
                     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-2">
                       <div className="flex items-center justify-between text-xs font-medium text-zinc-500">
                         <span>Total Revenue</span>
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
                           <IndianRupee className="h-4 w-4" />
                         </div>
                       </div>
@@ -426,7 +457,7 @@ export default function AdminDashboardPage() {
                     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-2">
                       <div className="flex items-center justify-between text-xs font-medium text-zinc-500">
                         <span>Total Orders</span>
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400">
                           <ShoppingBag className="h-4 w-4" />
                         </div>
                       </div>
@@ -438,7 +469,7 @@ export default function AdminDashboardPage() {
                     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-2">
                       <div className="flex items-center justify-between text-xs font-medium text-zinc-500">
                         <span>Active Products</span>
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                           <Package className="h-4 w-4" />
                         </div>
                       </div>
@@ -450,7 +481,7 @@ export default function AdminDashboardPage() {
                     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-2">
                       <div className="flex items-center justify-between text-xs font-medium text-zinc-500">
                         <span>Customers</span>
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400">
                           <Users className="h-4 w-4" />
                         </div>
                       </div>
@@ -466,10 +497,10 @@ export default function AdminDashboardPage() {
                   {/* Low Stock Alerts */}
                   {analytics.low_stock_alerts &&
                     analytics.low_stock_alerts.length > 0 && (
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 space-y-3">
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 space-y-3 dark:border-amber-500/30 dark:bg-amber-500/10">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-800">
-                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                             Low Stock Inventory Alerts (
                             {analytics.low_stock_alerts.length})
                           </div>
@@ -479,13 +510,13 @@ export default function AdminDashboardPage() {
                           {analytics.low_stock_alerts.map((item) => (
                             <div
                               key={item.product_id}
-                              className="flex items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-white px-4 py-3"
+                              className="flex items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-white px-4 py-3 dark:border-amber-500/20"
                             >
                               <div className="min-w-0">
                                 <p className="truncate text-xs font-semibold text-zinc-900">
                                   {item.title}
                                 </p>
-                                <p className="font-mono text-[11px] font-medium text-rose-600">
+                                <p className="font-mono text-[11px] font-medium text-rose-600 dark:text-rose-400">
                                   {item.stock_quantity} left ·{" "}
                                   {formatCurrency(item.price)}
                                 </p>
@@ -509,7 +540,50 @@ export default function AdminDashboardPage() {
 
               {/* PRODUCTS TAB */}
               {activeTab === "products" && (
-                <div className="space-y-4">
+                <div className="space-y-5">
+                  {/* Categories Management Strip */}
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                        <Tag className="h-3.5 w-3.5" />
+                        Categories ({categories.length})
+                      </div>
+                      <span className="text-[11px] text-zinc-400">
+                        Click × to remove unused categories
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {categories.map((cat) => {
+                        const count = products.filter(
+                          (p) => p.category_id === cat.id
+                        ).length;
+                        return (
+                          <div
+                            key={cat.id}
+                            className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs"
+                          >
+                            <span className="font-medium text-zinc-900">
+                              {cat.name}
+                            </span>
+                            <span className="rounded bg-zinc-200/70 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                              {count}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingCategory(cat)}
+                              title={`Delete ${cat.name}`}
+                              className="rounded p-0.5 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Product Search */}
                   <div className="relative max-w-sm">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                     <input
@@ -521,6 +595,7 @@ export default function AdminDashboardPage() {
                     />
                   </div>
 
+                  {/* Products Table */}
                   <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xs">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
@@ -596,7 +671,7 @@ export default function AdminDashboardPage() {
                                 <button
                                   type="button"
                                   onClick={() => setDeletingProduct(p)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15 dark:hover:text-rose-400 transition-colors cursor-pointer"
                                   title="Delete product"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -751,7 +826,7 @@ export default function AdminDashboardPage() {
                               >
                                 <td className="px-5 py-3.5">
                                   <div className="flex items-center gap-2.5">
-                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-semibold text-white">
+                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-semibold text-white dark:bg-white dark:text-zinc-950">
                                       {c.full_name?.charAt(0).toUpperCase() ||
                                         "C"}
                                     </div>
@@ -839,7 +914,7 @@ export default function AdminDashboardPage() {
         </form>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Product Confirmation Modal */}
       <Modal
         open={!!deletingProduct}
         onClose={() => setDeletingProduct(null)}
@@ -868,6 +943,40 @@ export default function AdminDashboardPage() {
               onClick={handleConfirmDelete}
             >
               Deactivate
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Category Confirmation Modal */}
+      <Modal
+        open={!!deletingCategory}
+        onClose={() => setDeletingCategory(null)}
+        title="Delete Category"
+        description="Only empty categories with no linked products can be removed."
+        maxWidthClass="max-w-md"
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-zinc-600">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-zinc-950">
+              {deletingCategory?.name}
+            </span>
+            ?
+          </p>
+          <div className="flex justify-end gap-2.5">
+            <Button
+              variant="outline"
+              onClick={() => setDeletingCategory(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              isLoading={deletingCatLoading}
+              onClick={handleConfirmDeleteCategory}
+            >
+              Delete Category
             </Button>
           </div>
         </div>
