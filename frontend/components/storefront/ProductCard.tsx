@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { PackageOpen, Plus, Check } from "lucide-react";
+import { PackageOpen, Plus, Check, Share2, Star } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import type { Product } from "@/lib/types";
 import { formatCurrency, cn } from "@/lib/utils";
@@ -20,6 +20,10 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   const isOutOfStock = product.stock_quantity <= 0;
   const isLowStock = product.stock_quantity > 0 && product.stock_quantity <= 5;
+  const primaryImage =
+    product.images && product.images.length > 0
+      ? product.images[0].image_url
+      : product.image_url;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -62,6 +66,40 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const shareUrl = `${window.location.origin}/products/${product.id}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: product.title,
+          text: `Check out ${product.title} on NeuraShop`,
+          url: shareUrl,
+        });
+        return;
+      } catch {
+        // Fallback to clipboard copy if user dismissed or share unavailable
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        type: "success",
+        title: "Link copied",
+        description: `Share link for "${product.title}" copied to clipboard.`,
+      });
+    } catch {
+      toast({
+        type: "error",
+        title: "Share failed",
+        description: "Could not copy product link.",
+      });
+    }
+  };
+
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-200/90 bg-white transition-all duration-200 hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700">
       {/* Image Frame */}
@@ -69,9 +107,9 @@ export default function ProductCard({ product }: ProductCardProps) {
         href={`/products/${product.id}`}
         className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-100 block"
       >
-        {product.image_url ? (
+        {primaryImage ? (
           <img
-            src={product.image_url}
+            src={primaryImage}
             alt={product.title}
             className={cn(
               "h-full w-full object-cover transition-transform duration-500 group-hover:scale-105",
@@ -106,17 +144,25 @@ export default function ProductCard({ product }: ProductCardProps) {
       {/* Card Body */}
       <div className="flex flex-1 flex-col justify-between p-4 sm:p-5">
         <div className="space-y-1.5">
-          <Link href={`/products/${product.id}`} className="block">
-            <h3 className="line-clamp-1 text-sm font-semibold tracking-tight text-zinc-950 group-hover:underline decoration-zinc-300 dark:decoration-zinc-600 underline-offset-4">
-              {product.title}
-            </h3>
-          </Link>
+          <div className="flex items-start justify-between gap-2">
+            <Link href={`/products/${product.id}`} className="block min-w-0 flex-1">
+              <h3 className="line-clamp-1 text-sm font-semibold tracking-tight text-zinc-950 group-hover:underline decoration-zinc-300 dark:decoration-zinc-600 underline-offset-4">
+                {product.title}
+              </h3>
+            </Link>
+            {(product.review_count ?? 0) > 0 && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+                {product.average_rating?.toFixed(1)}
+              </span>
+            )}
+          </div>
           <p className="line-clamp-2 text-xs leading-relaxed text-zinc-500">
             {product.description}
           </p>
         </div>
 
-        {/* Footer Price + Action */}
+        {/* Footer Price + Actions */}
         <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3.5">
           <div>
             <span className="block text-[10px] font-medium uppercase tracking-wider text-zinc-400">
@@ -127,35 +173,47 @@ export default function ProductCard({ product }: ProductCardProps) {
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            disabled={adding || isOutOfStock}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-all cursor-pointer",
-              isOutOfStock
-                ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
-                : justAdded
-                ? "bg-emerald-600 text-white"
-                : "bg-zinc-900 text-white hover:bg-zinc-800 active:scale-[0.98]"
-            )}
-          >
-            {justAdded ? (
-              <>
-                <Check className="h-3.5 w-3.5" />
-                Added
-              </>
-            ) : isOutOfStock ? (
-              "Sold Out"
-            ) : adding ? (
-              "Adding..."
-            ) : (
-              <>
-                <Plus className="h-3.5 w-3.5" />
-                Add
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleShare}
+              title="Share product"
+              aria-label={`Share ${product.title}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={adding || isOutOfStock}
+              className={cn(
+                "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-all cursor-pointer",
+                isOutOfStock
+                  ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
+                  : justAdded
+                  ? "bg-emerald-600 text-white"
+                  : "bg-zinc-900 text-white hover:bg-zinc-800 active:scale-[0.98]"
+              )}
+            >
+              {justAdded ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Added
+                </>
+              ) : isOutOfStock ? (
+                "Sold Out"
+              ) : adding ? (
+                "Adding..."
+              ) : (
+                <>
+                  <Plus className="h-3.5 w-3.5" />
+                  Add
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

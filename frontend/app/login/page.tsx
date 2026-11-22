@@ -8,6 +8,7 @@ import {
   Lock,
   Mail,
   User as UserIcon,
+  Phone,
   ArrowRight,
   AlertCircle,
   Eye,
@@ -26,6 +27,7 @@ function LoginContent() {
   const [isRegistering, setIsRegistering] = React.useState(false);
   const [fullName, setFullName] = React.useState("");
   const [email, setEmail] = React.useState("");
+  const [phone, setPhone] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -51,6 +53,15 @@ function LoginContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (isRegistering) {
+      const digits = phone.replace(/\D/g, "");
+      if (digits.length < 10 || digits.length > 15) {
+        setError("Please enter a valid 10 to 15-digit mobile number.");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -58,8 +69,9 @@ function LoginContent() {
         await apiRequest("/api/auth/register", {
           method: "POST",
           body: JSON.stringify({
-            full_name: fullName,
-            email,
+            full_name: fullName.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
             password,
             role: "customer",
           }),
@@ -68,10 +80,17 @@ function LoginContent() {
 
       const res = await apiRequest<{
         access_token: string;
-        user: { id: number; full_name: string; email: string; role: string };
+        user: {
+          id: number;
+          full_name: string;
+          email: string;
+          phone?: string;
+          secondary_phone?: string;
+          role: string;
+        };
       }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
       localStorage.setItem("token", res.access_token);
@@ -96,7 +115,7 @@ function LoginContent() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm lg:grid-cols-12">
-        {/* Left Brand Panel (Desktop) */}
+        {/* Left Brand Panel */}
         <div className="hidden lg:col-span-5 lg:flex flex-col justify-between bg-zinc-950 p-10 text-white">
           <div className="space-y-6">
             <Link href="/" className="inline-flex items-center gap-2.5">
@@ -113,9 +132,9 @@ function LoginContent() {
                 Enterprise-grade tech commerce, built for speed.
               </h2>
               <p className="text-sm leading-relaxed text-zinc-400">
-                Sign in to access persistent cart sync, one-click checkout,
-                real-time shipment tracking, and your personal AI shopping
-                concierge.
+                Sign in to manage saved delivery addresses, track orders in
+                real time, publish verified reviews, and chat with your AI
+                shopping concierge.
               </p>
             </div>
           </div>
@@ -145,20 +164,20 @@ function LoginContent() {
               </h1>
               <p className="text-sm text-zinc-500">
                 {isRegistering
-                  ? "Start ordering curated hardware with live delivery tracking."
-                  : "Enter your credentials to access your cart and orders."}
+                  ? "Enter your details and mobile number to start shopping."
+                  : "Enter your credentials to access your cart and settings."}
               </p>
             </div>
 
             {sessionExpired && !error && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
-                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+              <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300">
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                 <span>Your session expired. Please sign in again.</span>
               </div>
             )}
 
             {error && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-700">
+              <div className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-300">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -166,22 +185,42 @@ function LoginContent() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {isRegistering && (
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-zinc-700">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                    <input
-                      type="text"
-                      required
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="John Doe"
-                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
-                    />
+                <>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-zinc-700">
+                      Full Name
+                    </label>
+                    <div className="relative">
+                      <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                      <input
+                        type="text"
+                        required
+                        minLength={2}
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="John Doe"
+                        className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:text-zinc-100"
+                      />
+                    </div>
                   </div>
-                </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-zinc-700">
+                      Mobile Number <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                      <input
+                        type="tel"
+                        required
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+91 98765 43210"
+                        className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:text-zinc-100"
+                      />
+                    </div>
+                  </div>
+                </>
               )}
 
               <div className="space-y-1.5">
@@ -196,7 +235,7 @@ function LoginContent() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@company.com"
-                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:text-zinc-100"
                   />
                 </div>
               </div>
@@ -210,10 +249,11 @@ function LoginContent() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
+                    minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:text-zinc-100"
                   />
                   <button
                     type="button"

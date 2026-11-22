@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   ShoppingBag,
   ChevronRight,
+  ChevronLeft,
   ShieldCheck,
   Truck,
   RefreshCw,
@@ -15,10 +16,15 @@ import {
   PackageOpen,
   Zap,
   Sparkles,
+  Share2,
+  Copy,
+  Check,
+  Star,
+  MessageSquarePlus,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
-import type { Product } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
+import type { Product, ProductReview } from "@/lib/types";
+import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { useToast } from "@/context/ToastContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,9 +39,32 @@ function ProductDetailsContent() {
 
   const [product, setProduct] = React.useState<Product | null>(null);
   const [related, setRelated] = React.useState<Product[]>([]);
+  const [reviews, setReviews] = React.useState<ProductReview[]>([]);
+  const [activeImageIdx, setActiveImageIdx] = React.useState(0);
   const [quantity, setQuantity] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
   const [adding, setAdding] = React.useState(false);
+
+  // Share popover state
+  const [shareOpen, setShareOpen] = React.useState(false);
+  const [copiedLink, setCopiedLink] = React.useState(false);
+
+  // Review form state
+  const [rating, setRating] = React.useState(5);
+  const [reviewTitle, setReviewTitle] = React.useState("");
+  const [reviewComment, setReviewComment] = React.useState("");
+  const [submittingReview, setSubmittingReview] = React.useState(false);
+
+  const loadReviews = React.useCallback(async (id: string) => {
+    try {
+      const revData = await apiRequest<ProductReview[]>(
+        `/api/products/${id}/reviews`
+      );
+      setReviews(Array.isArray(revData) ? revData : []);
+    } catch {
+      // Ignore if unavailable
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!productId) return;
@@ -45,7 +74,9 @@ function ProductDetailsContent() {
       try {
         const data = await apiRequest<Product>(`/api/products/${productId}`);
         setProduct(data);
+        setActiveImageIdx(0);
         setQuantity(1);
+        loadReviews(productId);
 
         if (data?.category_id) {
           try {
@@ -66,7 +97,15 @@ function ProductDetailsContent() {
       }
     }
     loadProduct();
-  }, [productId]);
+  }, [productId, loadReviews]);
+
+  const galleryImages = React.useMemo(() => {
+    if (!product) return [];
+    if (product.images && product.images.length > 0) {
+      return product.images.map((i) => i.image_url);
+    }
+    return product.image_url ? [product.image_url] : [];
+  }, [product]);
 
   const handleAddToCart = async (redirectToCart = false) => {
     if (!product) return;
@@ -119,6 +158,90 @@ function ProductDetailsContent() {
     );
   };
 
+  const handleCopyShareLink = async () => {
+    const url = window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      toast({
+        type: "success",
+        title: "Link copied",
+        description: "Product link copied to your clipboard.",
+      });
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      toast({
+        type: "error",
+        title: "Copy failed",
+        description: "Could not copy link.",
+      });
+    }
+  };
+
+  const handleNativeOrToggleShare = async () => {
+    if (product && navigator.share) {
+      try {
+        await navigator.share({
+          title: product.title,
+          text: `Check out ${product.title} on NeuraShop`,
+          url: window.location.href,
+        });
+        return;
+      } catch {
+        // Fallback to share menu popover
+      }
+    }
+    setShareOpen((v) => !v);
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast({
+        type: "info",
+        title: "Sign in required",
+        description: "Please sign in to submit a product review.",
+      });
+      router.push("/login");
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      await apiRequest(`/api/products/${product.id}/reviews`, {
+        method: "POST",
+        body: JSON.stringify({
+          rating,
+          title: reviewTitle.trim() || undefined,
+          comment: reviewComment.trim(),
+        }),
+      });
+      setReviewTitle("");
+      setReviewComment("");
+      await loadReviews(String(product.id));
+      const refreshed = await apiRequest<Product>(
+        `/api/products/${product.id}`
+      );
+      setProduct(refreshed);
+      toast({
+        type: "success",
+        title: "Review published",
+        description: "Thank you for rating this product!",
+      });
+    } catch (err: unknown) {
+      toast({
+        type: "error",
+        title: "Could not submit review",
+        description: err instanceof Error ? err.message : "Try again.",
+      });
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -157,6 +280,11 @@ function ProductDetailsContent() {
 
   const isOutOfStock = product.stock_quantity <= 0;
   const isLowStock = product.stock_quantity > 0 && product.stock_quantity <= 5;
+  const currentUrl =
+    typeof window !== "undefined" ? encodeURIComponent(window.location.href) : "";
+  const shareText = encodeURIComponent(
+    `Check out ${product.title} on NeuraShop`
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-14">
@@ -179,15 +307,45 @@ function ProductDetailsContent() {
 
       {/* Main Product Split */}
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:items-start">
-        {/* Left: Product Gallery Frame */}
-        <div className="lg:col-span-6">
+        {/* Left: Interactive Multi-Image Gallery */}
+        <div className="lg:col-span-6 space-y-3">
           <div className="group relative aspect-square overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xs">
-            {product.image_url ? (
-              <img
-                src={product.image_url}
-                alt={product.title}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
+            {galleryImages.length > 0 ? (
+              <>
+                <img
+                  src={galleryImages[activeImageIdx] || galleryImages[0]}
+                  alt={`${product.title} view ${activeImageIdx + 1}`}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                {galleryImages.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveImageIdx((i) =>
+                          i === 0 ? galleryImages.length - 1 : i - 1
+                        )
+                      }
+                      aria-label="Previous photo"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-zinc-800 shadow-sm hover:bg-white dark:border-zinc-700 dark:bg-zinc-950/85 dark:text-white cursor-pointer"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveImageIdx((i) =>
+                          i === galleryImages.length - 1 ? 0 : i + 1
+                        )
+                      }
+                      aria-label="Next photo"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-zinc-800 shadow-sm hover:bg-white dark:border-zinc-700 dark:bg-zinc-950/85 dark:text-white cursor-pointer"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+              </>
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-400">
                 <PackageOpen className="h-10 w-10 stroke-[1.5]" />
@@ -195,31 +353,130 @@ function ProductDetailsContent() {
               </div>
             )}
           </div>
+
+          {/* Thumbnail Strip */}
+          {galleryImages.length > 1 && (
+            <div className="grid grid-cols-5 gap-2.5 sm:grid-cols-6">
+              {galleryImages.map((src, idx) => (
+                <button
+                  key={`${idx}-${src.slice(0, 20)}`}
+                  type="button"
+                  onClick={() => setActiveImageIdx(idx)}
+                  className={cn(
+                    "aspect-square overflow-hidden rounded-xl border bg-white transition-all cursor-pointer",
+                    idx === activeImageIdx
+                      ? "border-zinc-950 ring-2 ring-zinc-950/20 dark:border-white dark:ring-white/30"
+                      : "border-zinc-200 opacity-70 hover:opacity-100"
+                  )}
+                >
+                  <img
+                    src={src}
+                    alt={`Thumbnail ${idx + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Right: Specifications & Purchase Panel */}
+        {/* Right: Specifications, Share & Purchase Panel */}
         <div className="lg:col-span-6 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">
           <div className="space-y-3 border-b border-zinc-100 pb-6">
-            <div className="flex flex-wrap items-center gap-2">
-              {product.category?.name && (
-                <Badge variant="neutral">{product.category.name}</Badge>
-              )}
-              {isOutOfStock ? (
-                <Badge variant="danger">Out of Stock</Badge>
-              ) : isLowStock ? (
-                <Badge variant="warning">
-                  Low Stock · {product.stock_quantity} remaining
-                </Badge>
-              ) : (
-                <Badge variant="success">
-                  In Stock · {product.stock_quantity} available
-                </Badge>
-              )}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {product.category?.name && (
+                  <Badge variant="neutral">{product.category.name}</Badge>
+                )}
+                {isOutOfStock ? (
+                  <Badge variant="danger">Out of Stock</Badge>
+                ) : isLowStock ? (
+                  <Badge variant="warning">
+                    Low Stock · {product.stock_quantity} remaining
+                  </Badge>
+                ) : (
+                  <Badge variant="success">
+                    In Stock · {product.stock_quantity} available
+                  </Badge>
+                )}
+              </div>
+
+              {/* Share Menu Trigger */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={handleNativeOrToggleShare}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 cursor-pointer"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  Share
+                </button>
+
+                {shareOpen && (
+                  <div className="absolute right-0 top-10 z-20 w-52 rounded-xl border border-zinc-200 bg-white p-2 shadow-xl space-y-1 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={handleCopyShareLink}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                    >
+                      {copiedLink ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      {copiedLink ? "Copied!" : "Copy Product Link"}
+                    </button>
+                    <a
+                      href={`https://wa.me/?text=${shareText}%20${currentUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+                    >
+                      Share on WhatsApp
+                    </a>
+                    <a
+                      href={`https://twitter.com/intent/tweet?text=${shareText}&url=${currentUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+                    >
+                      Share on X
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
 
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">
               {product.title}
             </h1>
+
+            {/* Rating Summary Row */}
+            <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-0.5">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={cn(
+                      "h-3.5 w-3.5",
+                      star <= Math.round(product.average_rating || 0)
+                        ? "fill-amber-400 text-amber-400"
+                        : "text-zinc-300 dark:text-zinc-700"
+                    )}
+                  />
+                ))}
+              </div>
+              <a
+                href="#reviews"
+                className="font-medium text-zinc-600 hover:text-zinc-950 hover:underline"
+              >
+                {(product.review_count ?? 0) > 0
+                  ? `${product.average_rating?.toFixed(1)} · ${product.review_count} review${
+                      product.review_count === 1 ? "" : "s"
+                    }`
+                  : "No reviews yet · Be the first to review"}
+              </a>
+            </div>
 
             <div className="flex items-baseline gap-3 pt-1">
               <span className="font-mono text-3xl font-semibold tracking-tight text-zinc-950 tabular-nums">
@@ -300,7 +557,6 @@ function ProductDetailsContent() {
               </Button>
             </div>
 
-            {/* Integrated AI Product Comparison Trigger */}
             <button
               type="button"
               onClick={handleAskAiAboutProduct}
@@ -311,7 +567,7 @@ function ProductDetailsContent() {
             </button>
           </div>
 
-          {/* Enterprise Value Propositions */}
+          {/* Value Propositions */}
           <div className="grid grid-cols-1 gap-3 border-t border-zinc-100 pt-6 sm:grid-cols-3">
             <div className="rounded-xl border border-zinc-100 bg-zinc-50/70 p-3">
               <Truck className="h-4 w-4 text-zinc-700" />
@@ -337,6 +593,152 @@ function ProductDetailsContent() {
           </div>
         </div>
       </div>
+
+      {/* Customer Ratings & Reviews Section */}
+      <section
+        id="reviews"
+        className="scroll-mt-24 border-t border-zinc-200 pt-10 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start"
+      >
+        {/* Submit Review Form */}
+        <div className="lg:col-span-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-xs space-y-4">
+          <div className="flex items-center gap-2">
+            <MessageSquarePlus className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <h2 className="text-base font-semibold tracking-tight text-zinc-950">
+              Rate & Review This Product
+            </h2>
+          </div>
+
+          <form onSubmit={handleSubmitReview} className="space-y-4">
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium text-zinc-700">
+                Your Rating
+              </span>
+              <div className="flex items-center gap-1.5">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(star)}
+                    className="p-0.5 transition-transform hover:scale-110 cursor-pointer"
+                    aria-label={`Rate ${star} stars`}
+                  >
+                    <Star
+                      className={cn(
+                        "h-6 w-6",
+                        star <= rating
+                          ? "fill-amber-400 text-amber-400"
+                          : "text-zinc-300 dark:text-zinc-700"
+                      )}
+                    />
+                  </button>
+                ))}
+                <span className="ml-2 font-mono text-xs text-zinc-500">
+                  {rating}/5
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-zinc-700">
+                Headline (Optional)
+              </label>
+              <input
+                type="text"
+                value={reviewTitle}
+                onChange={(e) => setReviewTitle(e.target.value)}
+                placeholder="e.g. Great sound quality & battery life"
+                className="h-9 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:text-zinc-100"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-zinc-700">
+                Review
+              </label>
+              <textarea
+                required
+                minLength={3}
+                rows={3}
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder="Share your experience with build quality, performance, or value..."
+                className="w-full rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:text-zinc-100"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              isLoading={submittingReview}
+              className="w-full"
+            >
+              Submit Review
+            </Button>
+          </form>
+        </div>
+
+        {/* Reviews Feed */}
+        <div className="lg:col-span-7 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold tracking-tight text-zinc-950">
+              Customer Reviews ({reviews.length})
+            </h3>
+          </div>
+
+          {reviews.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center text-xs text-zinc-500 dark:border-zinc-700">
+              No reviews yet. Be the first customer to review {product.title}.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {reviews.map((rev) => (
+                <div
+                  key={rev.id}
+                  className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-semibold text-white dark:bg-white dark:text-zinc-950">
+                        {rev.user_name?.charAt(0).toUpperCase() || "C"}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-zinc-950">
+                          {rev.user_name}
+                        </p>
+                        <p className="text-[11px] text-zinc-400">
+                          {formatDate(rev.created_at)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={cn(
+                            "h-3.5 w-3.5",
+                            s <= rev.rating
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-zinc-300 dark:text-zinc-700"
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {rev.title && (
+                    <p className="text-sm font-semibold text-zinc-950">
+                      {rev.title}
+                    </p>
+                  )}
+                  <p className="text-xs leading-relaxed text-zinc-600">
+                    {rev.comment}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Related Products */}
       {related.length > 0 && (

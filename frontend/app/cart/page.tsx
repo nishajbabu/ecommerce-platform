@@ -13,9 +13,11 @@ import {
   ShieldCheck,
   Truck,
   PackageOpen,
+  MapPin,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
-import { formatCurrency } from "@/lib/utils";
+import type { UserAddress } from "@/lib/types";
+import { formatCurrency, cn } from "@/lib/utils";
 import { useToast } from "@/context/ToastContext";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,9 +48,17 @@ interface ConfirmedOrder {
   total_amount: number;
 }
 
+function formatAddressString(addr: UserAddress): string {
+  return `${addr.recipient_name} (${addr.phone}) - ${addr.address_line}, ${addr.city}, ${addr.state} - ${addr.postal_code}`;
+}
+
 export default function CartPage() {
   const { toast } = useToast();
   const [cart, setCart] = React.useState<CartData | null>(null);
+  const [savedAddresses, setSavedAddresses] = React.useState<UserAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = React.useState<
+    number | "custom"
+  >("custom");
   const [shippingAddress, setShippingAddress] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [mutatingId, setMutatingId] = React.useState<number | null>(null);
@@ -58,7 +68,7 @@ export default function CartPage() {
     React.useState<ConfirmedOrder | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  const loadCart = React.useCallback(async () => {
+  const loadCartAndAddresses = React.useCallback(async () => {
     const token = localStorage.getItem("token");
     if (!token) {
       setLoading(false);
@@ -67,8 +77,20 @@ export default function CartPage() {
     }
 
     try {
-      const data = await apiRequest<CartData>("/api/cart");
-      setCart(data);
+      const [cartData, addrData] = await Promise.all([
+        apiRequest<CartData>("/api/cart"),
+        apiRequest<UserAddress[]>("/api/addresses").catch(() => []),
+      ]);
+      setCart(cartData);
+      const addrs = Array.isArray(addrData) ? addrData : [];
+      setSavedAddresses(addrs);
+
+      if (addrs.length > 0) {
+        const def = addrs.find((a) => a.is_default) || addrs[0];
+        setSelectedAddressId(def.id);
+        setShippingAddress(formatAddressString(def));
+      }
+
       setError(null);
     } catch (err: unknown) {
       console.error(err);
@@ -81,8 +103,8 @@ export default function CartPage() {
   }, []);
 
   React.useEffect(() => {
-    loadCart();
-  }, [loadCart]);
+    loadCartAndAddresses();
+  }, [loadCartAndAddresses]);
 
   const syncCartNavbar = () => {
     window.dispatchEvent(new Event("cart-updated"));
@@ -108,7 +130,7 @@ export default function CartPage() {
         method: "PUT",
         body: JSON.stringify({ quantity: nextQty }),
       });
-      await loadCart();
+      await loadCartAndAddresses();
       syncCartNavbar();
     } catch (err: unknown) {
       toast({
@@ -126,7 +148,7 @@ export default function CartPage() {
     setMutatingId(item.id);
     try {
       await apiRequest(`/api/cart/${item.id}`, { method: "DELETE" });
-      await loadCart();
+      await loadCartAndAddresses();
       syncCartNavbar();
       toast({
         type: "success",
@@ -149,7 +171,7 @@ export default function CartPage() {
     setClearing(true);
     try {
       await apiRequest("/api/cart", { method: "DELETE" });
-      await loadCart();
+      await loadCartAndAddresses();
       syncCartNavbar();
       toast({
         type: "info",
@@ -168,10 +190,15 @@ export default function CartPage() {
     }
   };
 
+  const handleSelectSavedAddress = (addr: UserAddress) => {
+    setSelectedAddressId(addr.id);
+    setShippingAddress(formatAddressString(addr));
+  };
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shippingAddress.trim()) {
-      setError("Please provide a complete shipping address.");
+    if (!shippingAddress.trim() || shippingAddress.trim().length < 10) {
+      setError("Please select or enter a complete shipping address.");
       return;
     }
 
@@ -286,7 +313,7 @@ export default function CartPage() {
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-300">
           <div className="flex items-center gap-2.5">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{error}</span>
@@ -311,7 +338,7 @@ export default function CartPage() {
           <Skeleton className="lg:col-span-4 h-80 w-full rounded-2xl" />
         </div>
       ) : !cart || cart.items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white py-20 px-6 text-center space-y-4">
+        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white py-20 px-6 text-center space-y-4 dark:border-zinc-700">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400">
             <ShoppingBag className="h-6 w-6" />
           </div>
@@ -360,7 +387,7 @@ export default function CartPage() {
                     <div className="min-w-0 space-y-1">
                       <Link
                         href={`/products/${item.product_id}`}
-                        className="block truncate text-sm font-semibold text-zinc-950 hover:text-indigo-600 transition-colors"
+                        className="block truncate text-sm font-semibold text-zinc-950 hover:underline"
                       >
                         {item.product.title}
                       </Link>
@@ -414,7 +441,7 @@ export default function CartPage() {
                       type="button"
                       disabled={isMutating}
                       onClick={() => handleRemoveItem(item)}
-                      className="rounded-lg p-2 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 transition-colors disabled:opacity-40 cursor-pointer"
+                      className="rounded-lg p-2 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15 transition-colors disabled:opacity-40 cursor-pointer"
                       title="Remove item"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -425,7 +452,7 @@ export default function CartPage() {
             })}
           </div>
 
-          {/* Stripe-style Summary & Checkout Card */}
+          {/* Summary & Checkout Card */}
           <div className="lg:col-span-4 lg:sticky lg:top-24 rounded-2xl border border-zinc-200 bg-white p-6 shadow-xs space-y-6">
             <h2 className="text-base font-semibold tracking-tight text-zinc-950">
               Order Summary
@@ -440,7 +467,7 @@ export default function CartPage() {
               </div>
               <div className="flex justify-between text-zinc-600">
                 <span>Express Shipping</span>
-                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
                   Free
                 </span>
               </div>
@@ -453,19 +480,100 @@ export default function CartPage() {
             </div>
 
             <form onSubmit={handleCheckout} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-zinc-700">
-                  Delivery Address
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  value={shippingAddress}
-                  onChange={(e) => setShippingAddress(e.target.value)}
-                  placeholder="House/Flat No, Street, Landmark, City, State, PIN"
-                  className="w-full rounded-lg border border-zinc-200 bg-white p-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
-                />
-              </div>
+              {/* Saved Addresses Picker */}
+              {savedAddresses.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-zinc-700">
+                      Saved Addresses
+                    </span>
+                    <Link
+                      href="/settings?tab=addresses"
+                      className="text-[11px] font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                    >
+                      Manage
+                    </Link>
+                  </div>
+                  <div className="space-y-2">
+                    {savedAddresses.map((addr) => {
+                      const active = selectedAddressId === addr.id;
+                      return (
+                        <button
+                          key={addr.id}
+                          type="button"
+                          onClick={() => handleSelectSavedAddress(addr)}
+                          className={cn(
+                            "w-full rounded-xl border p-3 text-left text-xs transition-all cursor-pointer",
+                            active
+                              ? "border-zinc-900 bg-zinc-50 ring-1 ring-zinc-900 dark:border-white dark:ring-white"
+                              : "border-zinc-200 hover:border-zinc-300"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1 font-semibold text-zinc-950">
+                              <MapPin className="h-3 w-3" />
+                              {addr.label} · {addr.recipient_name}
+                            </span>
+                            {addr.is_default && (
+                              <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-[11px] text-zinc-500">
+                            {addr.address_line}, {addr.city}, {addr.state} –{" "}
+                            {addr.postal_code}
+                          </p>
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAddressId("custom");
+                        setShippingAddress("");
+                      }}
+                      className={cn(
+                        "w-full rounded-lg border border-dashed px-3 py-2 text-xs font-medium transition-colors cursor-pointer",
+                        selectedAddressId === "custom"
+                          ? "border-zinc-900 text-zinc-950 dark:border-white"
+                          : "border-zinc-300 text-zinc-500 hover:text-zinc-900 dark:border-zinc-700"
+                      )}
+                    >
+                      + Use a different delivery address
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(savedAddresses.length === 0 ||
+                selectedAddressId === "custom") && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-zinc-700">
+                      Delivery Address
+                    </label>
+                    {savedAddresses.length === 0 && (
+                      <Link
+                        href="/settings?tab=addresses"
+                        className="text-[11px] font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                      >
+                        Save in Settings →
+                      </Link>
+                    )}
+                  </div>
+                  <textarea
+                    required
+                    minLength={10}
+                    rows={3}
+                    value={shippingAddress}
+                    onChange={(e) => setShippingAddress(e.target.value)}
+                    placeholder="House/Flat No, Street, Landmark, City, State, PIN"
+                    className="w-full rounded-lg border border-zinc-200 bg-white p-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:text-zinc-100"
+                  />
+                </div>
+              )}
 
               <Button
                 type="submit"
